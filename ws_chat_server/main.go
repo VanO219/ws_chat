@@ -10,7 +10,7 @@ import (
 func main() {
 	e := echo.New()
 	e.GET("/ws", WsUpdate)
-	log.Fatalln(e.Start(":8080"))
+	log.Fatalln(e.Start("192.168.1.3:4200"))
 }
 
 func WsUpdate(c echo.Context) (err error) {
