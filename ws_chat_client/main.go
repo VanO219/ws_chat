@@ -1,27 +1,60 @@
 package main
 
 import (
+	"context"
 	"flag"
+	"fmt"
+	"github.com/gorilla/websocket"
 	"log"
 	"net/url"
 	"os"
 	"os/signal"
+	"sync"
 	"time"
-
-	"github.com/gorilla/websocket"
 )
 
-var addr = "localhost:8080"
+var (
+	addr      = "localhost:8080"
+	numOfGors = 1000
+	numOfMess = 1000
+)
 
 func main() {
 	flag.Parse()
 	log.SetFlags(0)
-
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
 
+	ctx, done := context.WithCancel(context.Background())
+	wg := &sync.WaitGroup{}
+	wg.Add(numOfGors)
+	t := time.Now()
+	for i := 0; i < numOfGors; i++ {
+		go client(ctx, wg, addr)
+	}
+
+	gosDone := make(chan struct{})
+	go func() {
+		wg.Wait()
+		gosDone <- struct{}{}
+	}()
+
+	for {
+		select {
+		case <-interrupt:
+			done()
+			return
+		case <-gosDone:
+			fmt.Println("Все клиенты отработали за ", time.Since(t))
+			return
+		}
+	}
+
+}
+
+func client(ctx context.Context, wg *sync.WaitGroup, addr string) {
+	defer wg.Done()
 	u := url.URL{Scheme: "ws", Host: addr, Path: "/ws"}
-	log.Printf("connecting to %s", u.String())
 
 	c, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	if err != nil {
@@ -29,34 +62,40 @@ func main() {
 	}
 	defer c.Close()
 
-	done := make(chan struct{})
+	//done := make(chan struct{})
 
 	go func() {
-		defer close(done)
+		//defer close(done)
 		for {
-			_, message, err := c.ReadMessage()
-			if err != nil {
-				log.Println("read:", err)
+			select {
+			case <-ctx.Done():
 				return
+			default:
+				_, _, err := c.ReadMessage()
+				if err != nil {
+					log.Println("read:", err)
+					return
+				}
 			}
-			log.Printf("recv: %s", message)
 		}
 	}()
 
-	ticker := time.NewTicker(time.Second)
+	ticker := time.NewTicker(50 * time.Millisecond)
 	defer ticker.Stop()
-
+	nm := numOfMess
 	for {
 		select {
-		case <-done:
-			return
 		case t := <-ticker.C:
+			if nm == 0 {
+				return
+			}
 			err := c.WriteMessage(websocket.TextMessage, []byte(t.String()))
 			if err != nil {
 				log.Println("write:", err)
 				return
 			}
-		case <-interrupt:
+			nm--
+		case <-ctx.Done():
 			log.Println("interrupt")
 
 			// Cleanly close the connection by sending a close message and then
@@ -65,10 +104,6 @@ func main() {
 			if err != nil {
 				log.Println("write close:", err)
 				return
-			}
-			select {
-			case <-done:
-			case <-time.After(time.Second):
 			}
 			return
 		}
