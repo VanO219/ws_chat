@@ -14,8 +14,8 @@ import (
 )
 
 var (
-	addr      = "localhost:8080"
-	numOfGors = 1000
+	addr      = "192.168.1.3:4200"
+	numOfGors = 100000
 	numOfMess = 1000
 )
 
@@ -30,6 +30,7 @@ func main() {
 	wg.Add(numOfGors)
 	t := time.Now()
 	for i := 0; i < numOfGors; i++ {
+		fmt.Println(i)
 		go client(ctx, wg, addr)
 	}
 
@@ -73,9 +74,10 @@ func client(ctx context.Context, wg *sync.WaitGroup, addr string) {
 			default:
 				_, _, err := c.ReadMessage()
 				if err != nil {
-					log.Println("read:", err)
+					//log.Println("read:", err)
 					return
 				}
+				//fmt.Println(string(mess))
 			}
 		}
 	}()
