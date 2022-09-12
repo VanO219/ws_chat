@@ -32,7 +32,7 @@ func main() {
 	for i := 0; i < numOfGors; i++ {
 		fmt.Println(i)
 		go client(ctx, wg, addr)
-		time.Sleep(50 * time.Microsecond)
+		//time.Sleep(50 * time.Microsecond)
 	}
 
 	gosDone := make(chan struct{})
@@ -58,10 +58,25 @@ func client(ctx context.Context, wg *sync.WaitGroup, addr string) {
 	defer wg.Done()
 	u := url.URL{Scheme: "ws", Host: addr, Path: "/ws"}
 
-	c, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
-	if err != nil {
-		log.Fatal("dial:", err)
+	var (
+		c   *websocket.Conn
+		err error
+	)
+
+	for {
+		c, _, err = websocket.DefaultDialer.Dial(u.String(), nil)
+		if err != nil {
+			log.Println("попытка установить конект: ", err)
+			continue
+		}
+		break
 	}
+
+	//c, _, err = websocket.DefaultDialer.Dial(u.String(), nil)
+	//if err != nil {
+	//	log.Println("попытка установить конект: ", err)
+	//	return
+	//}
 	defer c.Close()
 
 	//done := make(chan struct{})
