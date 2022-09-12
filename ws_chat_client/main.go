@@ -32,6 +32,7 @@ func main() {
 	for i := 0; i < numOfGors; i++ {
 		fmt.Println(i)
 		go client(ctx, wg, addr)
+		time.Sleep(50 * time.Microsecond)
 	}
 
 	gosDone := make(chan struct{})
