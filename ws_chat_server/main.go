@@ -5,6 +5,7 @@ import (
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
 	"github.com/labstack/echo/v4"
+	"log"
 	"net/http"
 )
 
@@ -34,6 +35,10 @@ func main() {
 			}
 		}()
 	})
+	err := http.ListenAndServe("192.168.1.3:4200", nil)
+	if err != nil {
+		log.Fatal("ListenAndServe: ", err)
+	}
 }
 
 func WsUpdate(c echo.Context) (err error) {
