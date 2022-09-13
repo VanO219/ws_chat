@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"github.com/gorilla/websocket"
 	"log"
@@ -14,14 +13,18 @@ import (
 )
 
 var (
-	addr      = "192.168.1.3:4200"
-	numOfGors = 100000
-	numOfMess = 1000
+	addr         = "192.168.1.3:4200"
+	numOfGors    = 100000
+	numOfMess    = 1000
+	errorsLogger *log.Logger
 )
 
 func main() {
-	flag.Parse()
-	log.SetFlags(0)
+	l, err := os.OpenFile("./errors.log", os.O_CREATE|os.O_APPEND|os.O_SYNC|os.O_TRUNC, 0666)
+	if err != nil {
+		log.Fatal(err)
+	}
+	errorsLogger = log.New(l, "error", 0)
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
 
@@ -66,7 +69,7 @@ func client(ctx context.Context, wg *sync.WaitGroup, addr string) {
 	for {
 		c, _, err = websocket.DefaultDialer.Dial(u.String(), nil)
 		if err != nil {
-			log.Println("попытка установить конект: ", err)
+			errorsLogger.Println("попытка установить конект: ", err)
 			continue
 		}
 		break
@@ -105,22 +108,27 @@ func client(ctx context.Context, wg *sync.WaitGroup, addr string) {
 		select {
 		case t := <-ticker.C:
 			if nm == 0 {
+				err := c.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+				if err != nil {
+					errorsLogger.Println("write close:", err)
+					return
+				}
 				return
 			}
 			err := c.WriteMessage(websocket.TextMessage, []byte(t.String()))
 			if err != nil {
-				log.Println("write:", err)
+				errorsLogger.Println("write:", err)
 				return
 			}
 			nm--
 		case <-ctx.Done():
-			log.Println("interrupt")
+			errorsLogger.Println("interrupt")
 
 			// Cleanly close the connection by sending a close message and then
 			// waiting (with timeout) for the server to close the connection.
 			err := c.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 			if err != nil {
-				log.Println("write close:", err)
+				errorsLogger.Println("write close:", err)
 				return
 			}
 			return
