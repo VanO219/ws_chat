@@ -4,7 +4,9 @@ go 1.19
 
 require (
 	github.com/gobwas/ws v1.1.0
+	github.com/gorilla/websocket v1.5.0
 	github.com/labstack/echo/v4 v4.9.0
+	github.com/pkg/errors v0.9.1
 )
 
 require (

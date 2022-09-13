@@ -3,7 +3,9 @@ package main
 import (
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
+	"github.com/gorilla/websocket"
 	"github.com/labstack/echo/v4"
+	"github.com/pkg/errors"
 	"log"
 	"net/http"
 	"os"
@@ -11,6 +13,11 @@ import (
 
 var (
 	errorsLogger *log.Logger
+	upgrader     = websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool {
+			return true // Пропускаем любой запрос
+		},
+	}
 )
 
 func main() {
@@ -23,21 +30,25 @@ func main() {
 	}
 	errorsLogger = log.New(l, "error", 0)
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-		conn, _, _, err := ws.UpgradeHTTP(r, w)
+		connection, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			errorsLogger.Println("ничё не вышло с ws upgrade")
 		}
 		go func() {
-			defer conn.Close()
+			defer connection.Close()
 			for {
-				msg, op, err := wsutil.ReadClientData(conn)
+				mt, message, err := connection.ReadMessage()
 				if err != nil {
-					errorsLogger.Println(err)
+					errorsLogger.Println(errors.Wrap(err, "connection.ReadMessage()"))
 					return
 				}
-				err = wsutil.WriteServerMessage(conn, op, msg)
+				if mt == websocket.CloseMessage {
+					errorsLogger.Println("Получен код закрытия соединения")
+					return
+				}
+				err = connection.WriteMessage(websocket.TextMessage, message)
 				if err != nil {
-					errorsLogger.Println(err)
+					errorsLogger.Println(errors.Wrap(err, "connection.WriteMessage(websocket.TextMessage, message)"))
 					return
 				}
 			}
